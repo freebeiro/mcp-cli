@@ -46,6 +46,11 @@ We're implementing multi-server support in three phases:
 - Will maintain backward compatibility with existing server configurations
 - Planning to implement a new ServerManager class for handling multiple connections
 - Will use async/await for managing multiple server connections
+- **Branching Strategy**:
+  - Main feature branch: `feature/multi-server-support`
+  - Each task will have its own branch branching from `feature/multi-server-support`
+  - Task branches will be merged back to `feature/multi-server-support`
+  - Final feature will be merged to `main`
 
 ## Next Steps
 Ready to begin Phase 1 implementation, starting with configuration structure updates.

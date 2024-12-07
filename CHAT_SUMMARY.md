@@ -42,6 +42,80 @@ We're implementing multi-server support in three phases:
    - Created new branch 'feature/multi-server-support'
    - Created this CHAT_SUMMARY.md file for tracking progress
 
+## Current Task: Update Server Configuration
+**Branch**: `task/update-server-config`
+
+### Detailed Steps:
+
+1. **Backup Current Configuration** (Safety Step) 
+   - Create a backup of current server_config.json
+   - Add to .gitignore to prevent committing backups
+
+2. **Update Configuration Schema** (Small Change) 
+   - Add version field to track config schema version
+   - Add new fields while maintaining backward compatibility
+   - Test loading of old config format still works
+
+### Implementation Details
+#### Configuration Changes
+1. Created new `config_types.py` with:
+   - `ServerGroup` class for managing server groups
+   - `MCPConfig` class for type-safe configuration handling
+   - Version-aware configuration loading
+2. Updated `config.py`:
+   - Made server_name parameter optional
+   - Added support for loading multiple active servers
+   - Maintained backward compatibility
+3. Updated `server_config.json`:
+   - Added version field (2.0.0)
+   - Added serverGroups structure
+   - Added activeServers list
+4. Added `test_config.py`:
+   - Test cases for v1 config format (backward compatibility)
+   - Test cases for v2 config format
+   - Test server parameter retrieval
+   - Test active servers handling
+
+#### Current Status
+- [x] Configuration structure updated
+- [x] Backward compatibility implemented
+- [x] Test cases written
+- [x] Tests passed successfully
+
+#### Next Steps
+1. ~~Set up proper Python environment with pytest~~
+2. ~~Run and verify all tests~~
+3. Update main.py to handle multiple active servers
+4. Implement server manager class
+5. Add integration tests for multi-server functionality
+
+#### Test Results
+```
+test_config.py::test_load_v1_config PASSED
+test_config.py::test_load_v2_config PASSED
+test_config.py::test_get_server_params PASSED
+test_config.py::test_get_active_server_params PASSED
+```
+
+All tests passed, confirming:
+- Backward compatibility with v1 config format
+- Proper handling of v2 config format
+- Correct server parameter retrieval
+- Active servers management
+
+### Testing Strategy for Each Step:
+- Create unit tests before making changes
+- Verify backward compatibility
+- Test with various server combinations
+- Validate error handling
+
+### Success Criteria:
+- [ ] Old config files still work without modification
+- [ ] New config structure supports multiple active servers
+- [ ] Config loading provides clear error messages
+- [ ] All tests pass
+- [ ] Documentation is updated
+
 ## Technical Decisions
 - Will maintain backward compatibility with existing server configurations
 - Planning to implement a new ServerManager class for handling multiple connections

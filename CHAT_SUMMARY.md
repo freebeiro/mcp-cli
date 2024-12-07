@@ -342,6 +342,34 @@ All tests passed, confirming:
 - [ ] Missing mcp-youtube package
 - [ ] Path resolution issues for Node.js tools
 
+## Investigated Issues
+- Server initialization timeouts in stdio-based servers
+- Stream management during server startup
+- Ready message handling between client and server
+- Message synchronization in multi-server setup
+
+## Key Findings
+1. Server successfully sends ready message but stream management is problematic
+2. Multiple attempts to fix the issue revealed deeper architectural concerns:
+   - Stream lifecycle management
+   - Message synchronization
+   - Client-server connection stability
+3. Current initialization flow has potential race conditions
+4. Logging shows message delivery but connection stability issues
+
+## Next Steps
+1. Investigate stream management during server startup
+2. Review the entire server initialization flow
+3. Consider implementing a more robust connection protocol
+4. Add comprehensive logging for stream lifecycle events
+5. Implement proper stream cleanup and error handling
+
+## Development Principles
+- Prioritize connection stability
+- Implement comprehensive error handling
+- Add detailed logging throughout the system
+- Consider timeout configurations carefully
+
 ## Technical Decisions
 - Will maintain backward compatibility with existing server configurations
 - Planning to implement a new ServerManager class for handling multiple connections

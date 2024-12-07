@@ -1,140 +1,196 @@
-# transport/stdio/stdio_client.py
 import sys
 import json
 import logging
-import anyio
-from anyio.streams.text import TextReceiveStream
+import asyncio
+import subprocess
+from typing import Optional, Tuple
 from contextlib import asynccontextmanager
-from environment import get_default_environment
-from messages.json_rpc_message import JSONRPCMessage
-from transport.stdio.stdio_server_parameters import StdioServerParameters
-import traceback
+import anyio
+from .stdio_server_parameters import StdioServerParameters, get_default_environment
+
+logger = logging.getLogger(__name__)
+
+async def write_message(stream, data: dict) -> bool:
+    """Write a JSON message to the stream."""
+    try:
+        json_str = json.dumps(data)
+        await stream.send(f"{json_str}\n".encode('utf-8'))
+        return True
+    except Exception as e:
+        logger.error(f"Failed to write message: {e}")
+        return False
+
+async def read_message(stream) -> Optional[dict]:
+    """Read a line from the stream and parse it as JSON."""
+    try:
+        buffer = bytearray()
+        while True:
+            chunk = await stream.receive(1)
+            if not chunk:
+                break
+                
+            if chunk == b'\n':
+                break
+                
+            buffer.extend(chunk)
+            
+        if not buffer:
+            return None
+            
+        try:
+            return json.loads(buffer.decode('utf-8'))
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode JSON: {e}")
+            return None
+            
+    except anyio.EndOfStream:
+        logger.debug("Stream closed")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to read message: {e}")
+        return None
 
 @asynccontextmanager
 async def stdio_client(server: StdioServerParameters):
-    # ensure we have a server command
+    """Create a connection to a stdio-based server."""
     if not server.command:
-        raise ValueError("Server command must not be empty.")
+        raise ValueError("Server command must not be empty")
     
-    # ensure we have server arguments as a list or tuple
     if not isinstance(server.args, (list, tuple)):
-        raise ValueError("Server arguments must be a list or tuple.")
+        raise ValueError("Server arguments must be a list or tuple")
     
-    # create the the read and write streams
-    read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
-    write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
+    # Create the read and write streams
+    read_stream_writer, read_stream = anyio.create_memory_object_stream(100)  # Increased buffer size
+    write_stream, write_stream_reader = anyio.create_memory_object_stream(100)  # Increased buffer size
 
-    # start the subprocess
-    process = await anyio.open_process(
-        [server.command, *server.args],
-        env=server.env or get_default_environment(),
-        stderr=sys.stderr,
-    )
+    # Start the subprocess with unbuffered pipes
+    try:
+        process = await anyio.open_process(
+            [server.command, *server.args],
+            env=server.env or get_default_environment(),
+            stderr=sys.stderr,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            start_new_session=True
+        )
+    except Exception as e:
+        raise RuntimeError(f"Failed to start process: {e}")
 
-    # started server
-    logging.debug(f"Subprocess started with PID {process.pid}, command: {server.command}")
-
-    # create a task to read from the subprocess' stdout
-    async def process_json_line(line: str, writer):
-        try:
-            logging.debug(f"Processing line: {line.strip()}")
-            data = json.loads(line)
-
-            # parse the json
-            logging.debug(f"Parsed JSON data: {data}")
-
-            # validate the jsonrpc message
-            message = JSONRPCMessage.model_validate(data)
-            logging.debug(f"Validated JSONRPCMessage: {message}")
-
-            # send the message
-            await writer.send(message)
-        except json.JSONDecodeError as exc:
-            # not valid json
-            logging.error(f"JSON decode error: {exc}. Line: {line.strip()}")
-        except Exception as exc:
-            # other exception
-            logging.error(f"Error processing message: {exc}. Line: {line.strip()}")
-            logging.debug(f"Traceback:\n{traceback.format_exc()}")
-
+    logger.info(f"Started subprocess with PID {process.pid}")
+    
+    # Create tasks for reading and writing
+    stdout_reader_task = None
+    stdin_writer_task = None
+    
     async def stdout_reader():
-        """Read JSON-RPC messages from the server's stdout."""
-        assert process.stdout, "Opened process is missing stdout"
-        buffer = ""
-        logging.debug("Starting stdout_reader")
+        """Read JSON-RPC messages from stdout."""
         try:
-            async with read_stream_writer:
-                async for chunk in TextReceiveStream(process.stdout):
-                    lines = (buffer + chunk).split("\n")
-                    buffer = lines.pop()
-                    for line in lines:
-                        if line.strip():
-                            await process_json_line(line, read_stream_writer)
-                if buffer.strip():
-                    await process_json_line(buffer, read_stream_writer)
-        except anyio.ClosedResourceError:
-            logging.debug("Read stream closed.")
-        except Exception as exc:
-            logging.error(f"Unexpected error in stdout_reader: {exc}")
-            logging.debug(f"Traceback:\n{traceback.format_exc()}")
-            raise
+            while True:
+                if process.returncode is not None:
+                    logger.debug(f"Process terminated with code {process.returncode}, stopping reader")
+                    break
+                    
+                message = await read_message(process.stdout)
+                if message is None:
+                    if process.returncode is None:
+                        logger.warning("Received None message but process is still running")
+                        continue
+                    logger.debug("End of stream, stopping reader")
+                    break
+                    
+                logger.debug(f"Received message: {message}")
+                try:
+                    await read_stream_writer.send(message)
+                except Exception as e:
+                    logger.error(f"Failed to send message to stream: {e}")
+                    break
+        except Exception as e:
+            logger.error(f"Error in stdout reader: {e}")
         finally:
-            logging.debug("Exiting stdout_reader")
+            logger.debug("Closing read stream")
+            await read_stream_writer.aclose()
 
     async def stdin_writer():
-        """Send JSON-RPC messages from the write stream to the server's stdin."""
-        assert process.stdin, "Opened process is missing stdin"
-        logging.debug("Starting stdin_writer")
+        """Write JSON-RPC messages to stdin."""
         try:
-            async with write_stream_reader:
-                async for message in write_stream_reader:
-                    json_str = message.model_dump_json(exclude_none=True)
-                    logging.debug(f"Sending: {json_str}")
-                    await process.stdin.send((json_str + "\n").encode())
-        except anyio.ClosedResourceError:
-            logging.debug("Write stream closed.")
-        except Exception as exc:
-            logging.error(f"Unexpected error in stdin_writer: {exc}")
-            logging.debug(f"Traceback:\n{traceback.format_exc()}")
-            raise
+            async for message in write_stream_reader:
+                if process.returncode is not None:
+                    logger.debug("Process terminated, stopping writer")
+                    break
+                    
+                if not await write_message(process.stdin, message):
+                    logger.debug("Failed to write message, stopping writer")
+                    break
+        except Exception as e:
+            logger.error(f"Error in stdin writer: {e}")
         finally:
-            logging.debug("Exiting stdin_writer")
+            logger.debug("Closing write stream")
+            await write_stream_reader.aclose()
+            if process.stdin:
+                await process.stdin.aclose()
 
-    async def terminate_process():
-        """Gracefully terminate the subprocess."""
+    async def cleanup_process():
+        """Clean up the subprocess."""
         try:
-            if process.returncode is None:  # Process is still running
-                logging.debug("Terminating subprocess...")
+            # Cancel reader/writer tasks
+            if stdout_reader_task and not stdout_reader_task.done():
+                stdout_reader_task.cancel()
+                try:
+                    await stdout_reader_task
+                except asyncio.CancelledError:
+                    pass
+                    
+            if stdin_writer_task and not stdin_writer_task.done():
+                stdin_writer_task.cancel()
+                try:
+                    await stdin_writer_task
+                except asyncio.CancelledError:
+                    pass
+                    
+            # Terminate process
+            if process.returncode is None:
+                logger.debug("Terminating process")
                 process.terminate()
-                with anyio.fail_after(5):
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=30.0)  # Increased timeout
+                except asyncio.TimeoutError:
+                    logger.debug("Force killing process")
+                    process.kill()
                     await process.wait()
-            else:
-                logging.info("Process already terminated.")
-        except TimeoutError:
-            logging.warning("Process did not terminate gracefully. Forcefully killing it.")
-            try:
-                process.kill()
-            except Exception as kill_exc:
-                logging.error(f"Error killing process: {kill_exc}")
-        except Exception as exc:
-            logging.error(f"Error during process termination: {exc}")
+                    
+        except Exception as e:
+            logger.error(f"Error cleaning up process: {e}")
 
     try:
-        async with anyio.create_task_group() as tg, process:
-            tg.start_soon(stdout_reader)
-            tg.start_soon(stdin_writer)
+        # Start reader/writer tasks
+        stdout_reader_task = asyncio.create_task(stdout_reader())
+        stdin_writer_task = asyncio.create_task(stdin_writer())
+        
+        # Wait for ready message with timeout
+        try:
+            logger.debug("Waiting for ready message")
+            message = await asyncio.wait_for(read_stream.receive(), timeout=30.0)  # Increased timeout
+            logger.debug(f"Got initialization message: {message}")
+            
+            if not isinstance(message, dict):
+                raise RuntimeError("Invalid message format")
+                
+            if message.get('method') != 'ready' or message.get('id') != 'init':
+                raise RuntimeError("Unexpected message type")
+                
+            logger.info(f"Server ready: {message.get('params', {}).get('server')}")
+            
+            # Yield streams for client use
             yield read_stream, write_stream
-
-        # exit the task group
-        exit_code = await process.wait()
-        logging.info(f"Process exited with code {exit_code}")
-    except Exception as exc:
-        # other exception
-        logging.error(f"Unhandled error in TaskGroup: {exc}")
-        logging.debug(f"Traceback:\n{traceback.format_exc()}")
-        if hasattr(exc, '__cause__') and exc.__cause__:
-            logging.debug(f"TaskGroup exception cause: {exc.__cause__}")
+            
+        except asyncio.TimeoutError:
+            raise RuntimeError("Server initialization timeout")
+        except Exception as e:
+            raise RuntimeError(f"Server initialization failed: {e}")
+            
+    except Exception as e:
+        logger.error(f"Server connection failed: {e}")
         raise
+        
     finally:
-        await terminate_process()
-
+        await cleanup_process()

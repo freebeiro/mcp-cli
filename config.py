@@ -1,49 +1,43 @@
 # config.py
 import json
 import logging
+from typing import Union, List
 from transport.stdio.stdio_server_parameters import StdioServerParameters
+from config_types import MCPConfig
 
-async def load_config(config_path: str, server_name: str) -> StdioServerParameters:
-    """ Load the server configuration from a JSON file. """
+async def load_config(config_path: str, server_name: str = None) -> Union[StdioServerParameters, List[StdioServerParameters]]:
+    """Load the server configuration from a JSON file.
+    
+    Args:
+        config_path: Path to the configuration file
+        server_name: Optional server name. If None, returns all active servers
+    
+    Returns:
+        Either a single StdioServerParameters or a list of them, depending on server_name
+    """
     try:
-        # debug
+        # Read and parse configuration
         logging.debug(f"Loading config from {config_path}")
-
-        # Read the configuration file
         with open(config_path, "r") as config_file:
-            config = json.load(config_file)
+            config_dict = json.load(config_file)
 
-        # Retrieve the server configuration
-        server_config = config.get("mcpServers", {}).get(server_name)
-        if not server_config:
-            error_msg = f"Server '{server_name}' not found in configuration file."
-            logging.error(error_msg)
-            raise ValueError(error_msg)
+        # Convert to MCPConfig object
+        config = MCPConfig.from_dict(config_dict)
 
-        # Construct the server parameters
-        result = StdioServerParameters(
-            command=server_config["command"],
-            args=server_config.get("args", []),
-            env=server_config.get("env"),
-        )
-
-        # debug
-        logging.debug(f"Loaded config: command='{result.command}', args={result.args}, env={result.env}")
-
-        # return result
-        return result
+        # Return either single server or all active servers
+        if server_name:
+            return config.get_server_params(server_name)
+        else:
+            return config.get_active_server_params()
 
     except FileNotFoundError:
-        # error
         error_msg = f"Configuration file not found: {config_path}"
         logging.error(error_msg)
         raise FileNotFoundError(error_msg)
     except json.JSONDecodeError as e:
-        # json error
         error_msg = f"Invalid JSON in configuration file: {e.msg}"
         logging.error(error_msg)
         raise json.JSONDecodeError(error_msg, e.doc, e.pos)
     except ValueError as e:
-        # error
         logging.error(str(e))
         raise

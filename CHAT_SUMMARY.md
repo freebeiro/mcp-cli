@@ -70,29 +70,28 @@ We're implementing multi-server support in three phases:
    - Added version field (2.0.0)
    - Added serverGroups structure
    - Added activeServers list
+4. Added `test_config.py`:
+   - Test cases for v1 config format (backward compatibility)
+   - Test cases for v2 config format
+   - Test server parameter retrieval
+   - Test active servers handling
+
+#### Current Status
+- [x] Configuration structure updated
+- [x] Backward compatibility implemented
+- [x] Test cases written
+- [ ] Tests need to be run (pending Python environment setup)
 
 #### Next Steps
-We should now:
-1. Add unit tests for the new configuration system
-2. Update the main.py to handle multiple active servers
-3. Test backward compatibility with existing configs
+1. Set up proper Python environment with pytest
+2. Run and verify all tests
+3. Update main.py to handle multiple active servers
 
-3. **Add Multi-Server Support in Config** (Core Change)
-   - Add server groups concept
-   - Add server priority/order within groups
-   - Add server aliases for easy reference
-   - Test with example multi-server setup
-
-4. **Update Config Loading Code** (Integration)
-   - Modify config.py to handle new structure
-   - Add validation for new fields
-   - Add migration support for old config format
-   - Add unit tests for config loading
-
-5. **Documentation Update**
-   - Update config schema documentation
-   - Add migration guide for existing users
-   - Document new multi-server capabilities
+#### Environment Setup Needed
+```bash
+asdf install python 3.12
+uv pip install pytest
+```
 
 ### Testing Strategy for Each Step:
 - Create unit tests before making changes

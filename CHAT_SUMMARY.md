@@ -116,6 +116,113 @@ All tests passed, confirming:
 - [ ] All tests pass
 - [ ] Documentation is updated
 
+## Current Task: Implement Server Manager
+**Branch**: `task/server-manager`
+
+### Server Manager Design
+
+#### Core Functionality
+1. **Connection Management**
+   - Maintain multiple server connections
+   - Handle connection lifecycle (start, stop, restart)
+   - Monitor connection health
+
+2. **Command Routing**
+   - Route commands to appropriate servers
+   - Support broadcasting to multiple servers
+   - Handle command responses and errors
+
+3. **State Management**
+   - Track active servers
+   - Monitor server status
+   - Handle server group operations
+
+#### Implementation Steps
+
+1. **Create Base Structure** (Current)
+   - Create ServerManager class
+   - Define core interfaces and types
+   - Set up basic connection handling
+
+2. **Add Connection Management**
+   - Implement connection pooling
+   - Add connection lifecycle methods
+   - Add health checking
+
+3. **Implement Command Routing**
+   - Add command dispatch logic
+   - Implement response aggregation
+   - Add error handling
+
+4. **Add State Management**
+   - Implement server status tracking
+   - Add group operations
+   - Add state persistence
+
+5. **Testing**
+   - Unit tests for each component
+   - Integration tests for full workflow
+   - Performance tests for multiple connections
+
+### Success Criteria
+- [ ] Multiple servers can be connected simultaneously
+- [ ] Commands can be routed to specific servers
+- [ ] Server groups can be managed effectively
+- [ ] Connection issues are handled gracefully
+- [ ] All tests pass
+
+## Current Task: Implement Command Routing
+**Branch**: `task/command-routing`
+
+### Command Routing Design
+
+#### Requirements
+1. **Command Types**
+   - Single server commands
+   - Broadcast commands to all servers
+   - Group-targeted commands
+   - Command response aggregation
+
+2. **Response Handling**
+   - Collect responses from all targeted servers
+   - Handle timeouts and partial failures
+   - Aggregate responses in a meaningful way
+
+3. **Error Handling**
+   - Server-specific errors
+   - Network timeouts
+   - Partial success scenarios
+
+#### Implementation Steps
+
+1. **Create Command Router** (Current)
+   - Define command types and interfaces
+   - Implement routing logic
+   - Add response collection mechanism
+
+2. **Add Response Aggregation**
+   - Implement response collectors
+   - Add timeout handling
+   - Create response formatting
+
+3. **Error Handling**
+   - Add retry mechanisms
+   - Implement fallback strategies
+   - Add error reporting
+
+4. **Testing**
+   - Unit tests for routing logic
+   - Integration tests with mock servers
+   - Error scenario testing
+
+### Success Criteria
+- [ ] Commands can be routed to specific servers
+- [ ] Broadcast commands work across all servers
+- [ ] Group commands target correct servers
+- [ ] Responses are properly aggregated
+- [ ] Errors are handled gracefully
+- [ ] All tests pass
+
 ## Technical Decisions
 - Will maintain backward compatibility with existing server configurations
 - Planning to implement a new ServerManager class for handling multiple connections

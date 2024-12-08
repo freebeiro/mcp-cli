@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "mcpServers": {
+    "router": {
+      "command": "/opt/homebrew/Caskroom/miniconda/base/bin/python",
+      "args": ["/Users/freebeiro/Documents/fcr/claudefiles/mcp-cli/example.py", "router"],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  },
+  "serverGroups": {
+    "default": {
+      "servers": ["router"],
+      "description": "Intelligent routing server"
+    }
+  },
+  "activeServers": ["router"]
+}

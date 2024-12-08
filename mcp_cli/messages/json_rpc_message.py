@@ -12,14 +12,3 @@ class JSONRPCMessage(BaseModel):
 
     class Config:
         extra = "allow"
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "jsonrpc": self.jsonrpc,
-            "id": self.id,
-            "method": self.method,
-            "params": self.params,
-            "result": self.result,
-            "error": self.error
-        }

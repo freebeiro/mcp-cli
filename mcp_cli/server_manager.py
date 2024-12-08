@@ -1,49 +1,55 @@
-from dataclasses import dataclass
-from typing import Dict, List, Optional, AsyncIterator
-import anyio
+import os
+import json
 import logging
+import asyncio
+import subprocess
+from typing import Dict, Optional, List, AsyncGenerator
+from dataclasses import dataclass
+from pathlib import Path
+from mcp_cli.config_types import MCPConfig, ServerGroup
 from mcp_cli.transport.stdio.stdio_server_parameters import StdioServerParameters
 from mcp_cli.transport.stdio.stdio_client import stdio_client
-from mcp_cli.config_types import MCPConfig
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+@dataclass
 class ServerConnection:
-    """Represents a connection to a server."""
-    def __init__(self, server_name: str, reader: MemoryObjectReceiveStream, writer: MemoryObjectSendStream):
-        self.server_name = server_name
-        self.reader = reader
-        self.writer = writer
-        
-    async def close(self):
-        """Close the connection."""
-        if self.writer:
-            await self.writer.aclose()
+    """Represents an active server connection"""
+    name: str
+    parameters: StdioServerParameters
+    read_stream: AsyncGenerator[dict, None]
+    write_stream: AsyncGenerator[dict, None]
+    status: str = "connected"
+    last_error: Optional[str] = None
 
 class ServerManager:
-    """Manages multiple server connections"""
+    """Manages multiple server connections and their lifecycle"""
     
     def __init__(self, config: MCPConfig):
         self.config = config
         self.connections: Dict[str, ServerConnection] = {}
         self.logger = logging.getLogger(__name__)
 
-    async def connect_server(self, server_name: str) -> None:
+    async def connect_server(self, server_name: str) -> ServerConnection:
         """Connect to a single server"""
-        if server_name not in self.config.server_params:
-            raise ValueError(f"Server '{server_name}' not found in configuration")
+        if server_name in self.connections:
+            return self.connections[server_name]
 
         try:
-            params = self.config.server_params[server_name]
-            client = await stdio_client(params)
-            async with client as (reader, writer):
-                self.connections[server_name] = ServerConnection(
-                    server_name=server_name,
-                    reader=reader,
-                    writer=writer
-                )
-                self.logger.info(f"Connected to server {server_name}")
+            params = self.config.get_server_params(server_name)
+            read_stream, write_stream = await stdio_client(params)
+            
+            connection = ServerConnection(
+                name=server_name,
+                parameters=params,
+                read_stream=read_stream,
+                write_stream=write_stream
+            )
+            
+            self.connections[server_name] = connection
+            self.logger.info(f"Connected to server: {server_name}")
+            return connection
+            
         except Exception as e:
-            self.logger.error(f"Failed to connect to server {server_name}: {e}")
+            self.logger.error(f"Failed to connect to server {server_name}: {str(e)}")
             raise
 
     async def connect_all(self) -> List[ServerConnection]:
@@ -51,25 +57,28 @@ class ServerManager:
         connections = []
         for server_name in self.config.active_servers:
             try:
-                await self.connect_server(server_name)
-                connections.append(self.connections[server_name])
+                connection = await self.connect_server(server_name)
+                connections.append(connection)
             except Exception as e:
-                self.logger.error(f"Failed to connect to server {server_name}: {e}")
-                raise
+                self.logger.error(f"Failed to connect to {server_name}: {str(e)}")
+                # Continue connecting to other servers even if one fails
+                continue
         return connections
 
     async def disconnect_server(self, server_name: str) -> None:
-        """Disconnect from a server"""
+        """Disconnect from a specific server"""
         if server_name not in self.connections:
             return
-        
+
+        connection = self.connections[server_name]
         try:
-            connection = self.connections[server_name]
-            await connection.close()
+            # Close streams
+            await connection.read_stream.aclose()
+            await connection.write_stream.aclose()
             del self.connections[server_name]
-            self.logger.info(f"Disconnected from server {server_name}")
+            self.logger.info(f"Disconnected from server: {server_name}")
         except Exception as e:
-            self.logger.error(f"Failed to disconnect from server {server_name}: {e}")
+            self.logger.error(f"Error disconnecting from {server_name}: {str(e)}")
             raise
 
     async def disconnect_all(self) -> None:
@@ -78,20 +87,19 @@ class ServerManager:
             await self.disconnect_server(server_name)
 
     def get_connection(self, server_name: str) -> Optional[ServerConnection]:
-        """Get connection for a specific server"""
+        """Get an active server connection"""
         return self.connections.get(server_name)
-
-    def get_all_connections(self) -> List[ServerConnection]:
-        """Get all connections"""
-        return list(self.connections.values())
 
     def get_group_connections(self, group_name: str) -> List[ServerConnection]:
         """Get all connections for servers in a group"""
         if group_name not in self.config.server_groups:
             return []
-        
+            
         group = self.config.server_groups[group_name]
-        return [conn for name, conn in self.connections.items() if name in group.servers]
+        return [
+            conn for name, conn in self.connections.items()
+            if name in group.servers
+        ]
 
     async def __aenter__(self):
         """Context manager entry"""

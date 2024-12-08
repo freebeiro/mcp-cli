@@ -591,47 +591,56 @@ ollama
 python -m pytest test_server_manager.py -v
 ```
 
-## Latest Changes (2024-12-08)
+## MCP-CLI Development Summary
 
-### MCP Tool System Implementation
-1. Created dynamic tool schema system:
-   - Implemented `ToolSchema` and `ToolParameter` for tool definition
-   - Added `ToolRegistry` for managing available tools
-   - Created `ToolDiscovery` for server tool discovery
-   - Implemented `ToolRouter` for tool execution
+## Project Overview
+- **Project**: Model Context Protocol Command-Line Interface (MCP-CLI)
+- **Current Branch**: `task/filesystem-server`
+- **Last Updated**: 2024-12-08
 
-2. Added Ollama MCP Server:
-   - Implemented MCP-compatible Ollama server
-   - Added text generation and chat capabilities
-   - Integrated streaming responses
-   - Added configuration management
+## Implementation Status
 
-3. Enhanced Test Infrastructure:
-   - Created comprehensive test structure (unit/spec/integration)
-   - Added BDD-style tests for server behavior
-   - Implemented integration tests for tool system
-   - Added test dependencies to project setup
+### Completed Features
+1. **Filesystem Server**:
+   - Implemented `handle_message` method with async context management
+   - Added `MessageHandler` class for message lifecycle management
+   - Added tool discovery functionality with `discover_tools` method
+   - Implemented file operations: search, read, write, append
+   - Added comprehensive unit and integration tests
 
-4. Improved Setup Process:
-   - Updated pyproject.toml with test dependencies
-   - Enhanced setup.sh for complete environment setup
-   - Added test verification during setup
-   - Improved configuration templates
+### Current Architecture
+1. **Core Components**:
+   - `FilesystemServer`: Handles filesystem operations via JSON-RPC
+   - `MessageHandler`: Manages message lifecycle as async context manager
+   - `ToolSchema`: Defines tool interface and parameters
 
-### Current Status
-- ✅ Tool system core implementation
-- ✅ Ollama server implementation
-- ✅ Test infrastructure
-- ✅ Setup process
-- ❌ Integration with other MCP servers
-- ❌ Complete tool routing system
+2. **Testing Infrastructure**:
+   - Unit tests for server functionality
+   - Integration tests for file operations
+   - Async context management testing
 
-### Next Steps
-1. Test Ollama server with real requests
-2. Implement remaining MCP servers:
-   - Filesystem server
-   - GitHub server
-   - SQLite server
-3. Complete tool routing system
-4. Add comprehensive error handling
-5. Implement parallel tool execution
+## Dependencies
+- Python >=3.8
+- Core:
+  - pydantic>=2.0.0: Data validation and JSON-RPC message handling
+  - anyio: Async I/O operations
+- Testing:
+  - pytest
+  - pytest-asyncio
+  - pytest-cov (dev)
+
+## Next Steps
+1. **Cleanup and Optimization**:
+   - Address remaining Pydantic deprecation warnings
+   - Optimize async context management
+   - Add more comprehensive error handling
+
+2. **Future Features**:
+   - Implement GitHub server
+   - Implement SQLite server
+   - Add more filesystem operations
+
+## Notes
+- All tests are passing with proper async context management
+- Setup file updated for easy project initialization
+- Project structure follows best practices for async Python applications

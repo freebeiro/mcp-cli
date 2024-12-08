@@ -8,6 +8,11 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.prompt import Prompt
 import json
+import logging
+import asyncio
+import uuid
+from typing import Dict
+from rich.console import Console
 
 async def handle_chat_mode(read_stream, write_stream, provider="openai", model="gpt-4o-mini"):
     """Enter chat mode with multi-call support for autonomous tool chaining."""
@@ -45,53 +50,126 @@ async def handle_chat_mode(read_stream, write_stream, provider="openai", model="
 
 
 async def process_conversation(client, conversation_history, openai_tools, read_stream, write_stream):
-    """Process the conversation loop, handling tool calls and responses."""
-    while True:
-        completion = client.create_completion(
+    """Process the conversation loop with improved stream management and error handling."""
+    try:
+        # Set up logging for stream lifecycle events
+        logging.info("Starting conversation processing")
+        
+        completion = await client.create_completion(
             messages=conversation_history,
             tools=openai_tools,
+            stream=True,
+            timeout=30  # Add configurable timeout
         )
 
-        response_content = completion.get("response", "No response")
-        tool_calls = completion.get("tool_calls", [])
+        current_content = []
+        current_tool_calls = []
+        
+        async with completion as stream:
+            try:
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        content_delta = chunk.choices[0].delta.content
+                        current_content.append(content_delta)
+                        print(content_delta, end="", flush=True)
+                    
+                    if chunk.choices[0].delta.tool_calls:
+                        await handle_tool_call_chunk(
+                            chunk.choices[0].delta.tool_calls,
+                            current_tool_calls
+                        )
+            except asyncio.TimeoutError:
+                logging.error("Stream timeout occurred")
+                print("\n[red]Error: Stream timeout[/red]")
+                raise
+            except Exception as e:
+                logging.error(f"Stream processing error: {str(e)}")
+                print(f"\n[red]Error processing stream: {str(e)}[/red]")
+                raise
 
-        if tool_calls:
-          for tool_call in tool_calls:
-              # Extract tool_name and raw_arguments as before
-              if hasattr(tool_call, 'function'):
-                  tool_name = getattr(tool_call.function, 'name', 'unknown tool')
-                  raw_arguments = getattr(tool_call.function, 'arguments', {})
-              elif isinstance(tool_call, dict) and 'function' in tool_call:
-                  fn_info = tool_call['function']
-                  tool_name = fn_info.get('name', 'unknown tool')
-                  raw_arguments = fn_info.get('arguments', {})
-              else:
-                  tool_name = "unknown tool"
-                  raw_arguments = {}
+        print()  # New line after streaming
 
-              # If raw_arguments is a string, try to parse it as JSON
-              if isinstance(raw_arguments, str):
-                  try:
-                      raw_arguments = json.loads(raw_arguments)
-                  except json.JSONDecodeError:
-                      # If it's not valid JSON, just display as is
-                      pass
+        # Process any collected tool calls
+        if current_tool_calls:
+            await process_tool_calls(
+                current_tool_calls,
+                conversation_history,
+                read_stream,
+                write_stream
+            )
 
-              # Now raw_arguments should be a dict or something we can pretty-print as JSON
-              tool_args_str = json.dumps(raw_arguments, indent=2)
+        # Add final response to history
+        if current_content:
+            conversation_history.append({
+                "role": "assistant",
+                "content": "".join(current_content)
+            })
 
-              tool_md = f"**Tool Call:** {tool_name}\n\n```json\n{tool_args_str}\n```"
-              print(Panel(Markdown(tool_md), style="bold magenta", title="Tool Invocation"))
+    except Exception as e:
+        logging.error(f"Conversation processing error: {str(e)}")
+        print(f"\n[red]Error in conversation: {str(e)}[/red]")
+        # Add error handling response to history
+        conversation_history.append({
+            "role": "system",
+            "content": f"Error occurred: {str(e)}"
+        })
 
-              await handle_tool_call(tool_call, conversation_history, read_stream, write_stream)
-          continue
+async def handle_tool_call_chunk(tool_call_chunks, current_tool_calls):
+    """Handle incoming tool call chunks with proper error handling."""
+    for tool_call in tool_call_chunks:
+        try:
+            if len(current_tool_calls) <= tool_call.index:
+                current_tool_calls.append({
+                    "id": tool_call.id or str(uuid.uuid4()),
+                    "type": tool_call.type or "function",
+                    "function": {
+                        "name": "",
+                        "arguments": ""
+                    }
+                })
+            
+            if tool_call.function:
+                current_call = current_tool_calls[tool_call.index]["function"]
+                if tool_call.function.name:
+                    current_call["name"] = tool_call.function.name
+                if tool_call.function.arguments:
+                    current_call["arguments"] += tool_call.function.arguments
+                    
+        except Exception as e:
+            logging.error(f"Error processing tool call chunk: {str(e)}")
+            raise
 
-
-        # Assistant panel with Markdown
-        assistant_panel_text = response_content if response_content else "[No Response]"
-        print(Panel(Markdown(assistant_panel_text), style="bold blue", title="Assistant"))
-        conversation_history.append({"role": "assistant", "content": response_content})
-        break
+async def process_tool_calls(tool_calls, conversation_history, read_stream, write_stream):
+    """Process collected tool calls with proper error handling and logging."""
+    for tool_call in tool_calls:
+        try:
+            logging.info(f"Executing tool: {tool_call['function']['name']}")
+            
+            tool_result = await handle_tool_call(
+                tool_call,
+                conversation_history,
+                read_stream,
+                write_stream
+            )
+            
+            conversation_history.append({
+                "role": "tool",
+                "content": str(tool_result),
+                "tool_call_id": tool_call["id"]
+            })
+            
+            logging.info(f"Tool execution completed: {tool_call['function']['name']}")
+            
+        except Exception as e:
+            error_msg = f"Error executing tool {tool_call['function']['name']}: {str(e)}"
+            logging.error(error_msg)
+            print(f"[red]{error_msg}[/red]")
+            
+            # Add error to conversation history
+            conversation_history.append({
+                "role": "system",
+                "content": f"Tool execution error: {error_msg}"
+            })
 
 
 
@@ -159,3 +237,119 @@ EXAMPLES OF ASSUMPTIONS:
 - Assume basic user intentions, such as fetching top results by a common metric.
 """
     return system_prompt
+
+async def handle_mcp_chat_mode(read_stream, write_stream, provider="ollama", model="llama3.2"):
+    """MCP-compliant chat mode implementation."""
+    try:
+        # Discover MCP tools
+        tools = await discover_mcp_tools(read_stream, write_stream)
+        if not tools:
+            print("[red]No MCP tools available. Exiting chat mode.[/red]")
+            return
+
+        # Generate MCP-aware system prompt
+        system_prompt = generate_mcp_system_prompt(tools)
+        
+        # Convert to OpenAI format while preserving MCP compatibility
+        openai_tools = convert_to_mcp_compatible_tools(tools)
+        
+        # Initialize LLM client with MCP awareness
+        client = LLMClient(
+            provider=provider,
+            model=model,
+            mcp_compatible=True
+        )
+        
+        conversation_history = [{"role": "system", "content": system_prompt}]
+
+        while True:
+            try:
+                user_message = Prompt.ask("[bold yellow]>[/bold yellow]").strip()
+                if user_message.lower() in ["exit", "quit"]:
+                    print(Panel("Exiting MCP chat mode.", style="bold red"))
+                    break
+
+                print(Panel(user_message, style="bold yellow", title="You"))
+
+                conversation_history.append({"role": "user", "content": user_message})
+                await process_mcp_conversation(
+                    client,
+                    conversation_history,
+                    openai_tools,
+                    read_stream,
+                    write_stream
+                )
+
+            except Exception as e:
+                logging.error(f"MCP chat error: {str(e)}")
+                print(f"[red]Error in MCP chat: {str(e)}[/red]")
+                continue
+
+    except Exception as e:
+        logging.error(f"MCP chat mode error: {str(e)}")
+        print(f"[red]Error in MCP chat mode: {str(e)}[/red]")
+
+def generate_mcp_system_prompt(tools: Dict) -> str:
+    """Generate MCP-aware system prompt."""
+    prompt_generator = SystemPromptGenerator()
+    
+    # Add MCP-specific context
+    mcp_context = """
+    You are an MCP-compatible assistant with access to the following servers and tools:
+    
+    Available MCP Servers:
+    {server_list}
+    
+    Tool Categories:
+    {tool_categories}
+    
+    Each tool follows the MCP protocol for:
+    - Parameter validation
+    - Error handling
+    - Response formatting
+    - Context management
+    
+    When using tools:
+    1. Verify server availability
+    2. Validate parameters against schema
+    3. Handle errors according to MCP spec
+    4. Process responses in MCP format
+    """
+    
+    # Generate server and tool information
+    server_list = format_server_list(tools)
+    tool_categories = categorize_mcp_tools(tools)
+    
+    return prompt_generator.generate_prompt({
+        "tools": tools,
+        "mcp_context": mcp_context.format(
+            server_list=server_list,
+            tool_categories=tool_categories
+        )
+    })
+
+def show_mcp_help(console: Console):
+    """Show MCP-specific help information."""
+    help_text = """
+# MCP Chat Commands
+
+## Basic Commands
+- exit/quit: Exit chat mode
+- help: Show this help message
+- clear: Clear the screen
+
+## Server Commands
+- servers: List connected MCP servers
+- tools: List available tools
+- status: Show server status
+
+## Tool Usage
+Tools can be used by describing what you want to do.
+The assistant will automatically select and use appropriate tools.
+
+## Examples
+- "List files in the current directory"
+- "Search for TODO comments in the codebase"
+- "Query the database for recent entries"
+    """
+    console.print(Panel(Markdown(help_text), title="MCP Help"))

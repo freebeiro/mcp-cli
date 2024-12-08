@@ -1,83 +1,82 @@
 import pytest
 import asyncio
-from typing import AsyncIterator, Tuple
+from typing import AsyncGenerator, Dict
 import json
 from config_types import MCPConfig, ServerGroup
 from server_manager import ServerManager, ServerConnection
 from transport.stdio.stdio_server_parameters import StdioServerParameters
 
-class MockStreamReader:
-    """Mock stream reader for testing"""
+class MockAsyncGenerator:
+    """Mock async generator for testing"""
     def __init__(self, responses=None):
         self.responses = responses or []
         self.current = 0
+        self.closed = False
     
-    async def readline(self) -> bytes:
+    async def __aiter__(self):
+        return self
+    
+    async def __anext__(self):
         if self.current < len(self.responses):
             response = self.responses[self.current]
             self.current += 1
-            return response.encode()
-        return b""
-
-class MockStreamWriter:
-    """Mock stream writer for testing"""
-    def __init__(self):
-        self.written = []
-        self.closed = False
+            return response
+        raise StopAsyncIteration
     
-    async def write(self, data: bytes) -> None:
-        self.written.append(data.decode())
-    
-    async def drain(self) -> None:
-        pass
+    async def asend(self, value: Dict) -> None:
+        """Mock send method"""
+        self.responses.append(value)
     
     async def aclose(self) -> None:
+        """Mock close method"""
         self.closed = True
 
 @pytest.fixture
 def mock_config():
     """Create a mock configuration"""
-    return MCPConfig(
-        version="2.0.0",
-        server_params={
-            "server1": StdioServerParameters(
-                command="test1",
-                args=[],
-                env=None
-            ),
-            "server2": StdioServerParameters(
-                command="test2",
-                args=[],
-                env=None
-            )
+    return MCPConfig({
+        "version": "2.0.0",
+        "mcpServers": {
+            "server1": {
+                "command": "test1",
+                "args": [],
+                "env": None
+            },
+            "server2": {
+                "command": "test2",
+                "args": [],
+                "env": None
+            }
         },
-        server_groups={
-            "group1": ServerGroup(
-                servers=["server1"],
-                description="Test group 1"
-            ),
-            "group2": ServerGroup(
-                servers=["server1", "server2"],
-                description="Test group 2"
-            )
-        },
-        active_servers=["server1", "server2"]
-    )
+        "serverGroups": {
+            "group1": {
+                "servers": ["server1"],
+                "description": "Test group 1"
+            },
+            "group2": {
+                "servers": ["server1", "server2"],
+                "description": "Test group 2"
+            }
+        }
+    })
 
 @pytest.fixture
 def mock_streams():
     """Create mock streams for testing"""
-    reader = MockStreamReader(["response1\n", "response2\n"])
-    writer = MockStreamWriter()
-    return reader, writer
+    read_stream = MockAsyncGenerator([
+        {"method": "ready", "id": "init", "params": {"server": "test"}},
+        {"method": "notification", "params": {"message": "test"}}
+    ])
+    write_stream = MockAsyncGenerator()
+    return read_stream, write_stream
 
 @pytest.mark.asyncio
 async def test_connect_server(mock_config, monkeypatch, mock_streams):
     """Test connecting to a single server"""
-    reader, writer = mock_streams
+    read_stream, write_stream = mock_streams
     
     async def mock_stdio_client(params):
-        return reader, writer
+        return read_stream, write_stream
     
     # Patch the stdio_client function
     monkeypatch.setattr("server_manager.stdio_client", mock_stdio_client)
@@ -93,10 +92,10 @@ async def test_connect_server(mock_config, monkeypatch, mock_streams):
 @pytest.mark.asyncio
 async def test_connect_all(mock_config, monkeypatch, mock_streams):
     """Test connecting to all active servers"""
-    reader, writer = mock_streams
+    read_stream, write_stream = mock_streams
     
     async def mock_stdio_client(params):
-        return reader, writer
+        return read_stream, write_stream
     
     monkeypatch.setattr("server_manager.stdio_client", mock_stdio_client)
     
@@ -110,10 +109,10 @@ async def test_connect_all(mock_config, monkeypatch, mock_streams):
 @pytest.mark.asyncio
 async def test_disconnect_server(mock_config, monkeypatch, mock_streams):
     """Test disconnecting from a server"""
-    reader, writer = mock_streams
+    read_stream, write_stream = mock_streams
     
     async def mock_stdio_client(params):
-        return reader, writer
+        return read_stream, write_stream
     
     monkeypatch.setattr("server_manager.stdio_client", mock_stdio_client)
     
@@ -122,15 +121,16 @@ async def test_disconnect_server(mock_config, monkeypatch, mock_streams):
     await manager.disconnect_server("server1")
     
     assert "server1" not in manager.connections
-    assert writer.closed
+    assert read_stream.closed
+    assert write_stream.closed
 
 @pytest.mark.asyncio
 async def test_get_group_connections(mock_config, monkeypatch, mock_streams):
     """Test getting connections by group"""
-    reader, writer = mock_streams
+    read_stream, write_stream = mock_streams
     
     async def mock_stdio_client(params):
-        return reader, writer
+        return read_stream, write_stream
     
     monkeypatch.setattr("server_manager.stdio_client", mock_stdio_client)
     
@@ -148,10 +148,10 @@ async def test_get_group_connections(mock_config, monkeypatch, mock_streams):
 @pytest.mark.asyncio
 async def test_context_manager(mock_config, monkeypatch, mock_streams):
     """Test using ServerManager as a context manager"""
-    reader, writer = mock_streams
+    read_stream, write_stream = mock_streams
     
     async def mock_stdio_client(params):
-        return reader, writer
+        return read_stream, write_stream
     
     monkeypatch.setattr("server_manager.stdio_client", mock_stdio_client)
     
@@ -160,5 +160,6 @@ async def test_context_manager(mock_config, monkeypatch, mock_streams):
         assert all(conn.status == "connected" for conn in manager.connections.values())
     
     # After context exit, all connections should be closed
-    assert writer.closed
+    assert read_stream.closed
+    assert write_stream.closed
     assert len(manager.connections) == 0

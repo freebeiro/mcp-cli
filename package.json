@@ -1,0 +1,9 @@
+{
+  "name": "premier-league-scraper",
+  "version": "1.0.0",
+  "description": "Premier League results scraper using Puppeteer",
+  "main": "puppeteer_server.js",
+  "dependencies": {
+    "puppeteer": "^21.5.0"
+  }
+}

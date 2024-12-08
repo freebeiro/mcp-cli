@@ -120,6 +120,9 @@ OLLAMA_MODEL=llama2
 EOL
 fi
 
+# Add to existing setup.sh
+pip install jsonschema rich pydantic anyio
+
 echo "✅ Setup complete! Your development environment is ready."
 echo "🔍 Run 'pytest tests/' to run tests"
 echo "🚀 Run 'python chat.py' to start the MCP-CLI"

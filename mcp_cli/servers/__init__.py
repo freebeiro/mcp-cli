@@ -1,3 +1,6 @@
-from .ollama_server import OllamaChat, process_request
+"""MCP Server implementations"""
 
-__all__ = ['OllamaChat', 'process_request']
+from .filesystem_server import FilesystemServer
+from .ollama_server import OllamaServer
+
+__all__ = ['FilesystemServer', 'OllamaServer']

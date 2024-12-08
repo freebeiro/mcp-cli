@@ -487,3 +487,54 @@ Ready to begin Phase 1 implementation, starting with configuration structure upd
 - Using `server_config.json` for server settings
 - Environment-based configuration for sensitive data
 - Added example configuration template
+
+## 🔧 Setup and Dependencies
+
+### Required Environment
+- Python 3.12.3 (via asdf)
+- Node.js 20.10.0
+- Conda environment at `/opt/homebrew/Caskroom/miniconda/base`
+
+### Initial Setup
+1. Create and activate Python environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+```
+
+2. Install Python dependencies:
+```bash
+pip install pytest pytest-asyncio pydantic anyio
+```
+
+3. Install Node.js dependencies:
+```bash
+npm install
+```
+
+4. Copy and configure server settings:
+```bash
+cp server_config.json.example server_config.json
+```
+
+### Common Issues and Fixes
+1. **Missing get_default_environment Function**
+   - If tests fail with `ImportError: cannot import name 'get_default_environment'`
+   - Add the function to `transport/stdio/stdio_server_parameters.py`:
+   ```python
+   def get_default_environment() -> Dict[str, str]:
+       return {
+           "PYTHONUNBUFFERED": "1",
+           "NODE_NO_WARNINGS": "1",
+           "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+       }
+   ```
+
+2. **Server Initialization Timeouts**
+   - Ensure all required Node.js packages are installed globally
+   - Check PATH includes Node.js and npm directories
+
+### Running Tests
+```bash
+python -m pytest test_server_manager.py -v
+```

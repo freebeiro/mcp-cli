@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/freebeiro/CascadeProjects/fetch_crawl4ai",
+        "/Users/freebeiro/Documents/fcr/claudefiles"
+      ]
+    },
+    "sqlite": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-sqlite",
+        "--db-path",
+        "/Users/freebeiro/Documents/fcr/claudefiles/claudefiles.db"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      }
+    },
+    "ollama": {
+      "command": "ollama",
+      "args": ["serve"]
+    }
+  }
+}

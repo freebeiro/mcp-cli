@@ -13,3 +13,17 @@ dependencies = [
     "requests>=2.32.3",
     "rich>=13.9.4",
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.5",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_spec.py"]
+python_classes = ["Test*", "Describe*"]
+python_functions = ["test_*", "it_*"]

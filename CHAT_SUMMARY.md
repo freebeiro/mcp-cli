@@ -593,26 +593,45 @@ python -m pytest test_server_manager.py -v
 
 ## Latest Changes (2024-12-08)
 
-### Async Generator Implementation
-1. Updated `stdio_client.py` to use async generators for better stream handling:
-   - Replaced stream readers/writers with async generators
-   - Added proper initialization and cleanup
-   - Improved error handling for stream operations
+### MCP Tool System Implementation
+1. Created dynamic tool schema system:
+   - Implemented `ToolSchema` and `ToolParameter` for tool definition
+   - Added `ToolRegistry` for managing available tools
+   - Created `ToolDiscovery` for server tool discovery
+   - Implemented `ToolRouter` for tool execution
 
-2. Updated `server_manager.py` to handle async generators:
-   - Modified ServerConnection class to use async generators
-   - Added proper stream cleanup in disconnect methods
-   - Updated connection handling for better reliability
+2. Added Ollama MCP Server:
+   - Implemented MCP-compatible Ollama server
+   - Added text generation and chat capabilities
+   - Integrated streaming responses
+   - Added configuration management
 
-3. Updated test suite:
-   - Created MockAsyncGenerator for testing
-   - Updated test cases to handle async generators
-   - Added proper stream cleanup verification
-   - Fixed MCPConfig initialization in tests
+3. Enhanced Test Infrastructure:
+   - Created comprehensive test structure (unit/spec/integration)
+   - Added BDD-style tests for server behavior
+   - Implemented integration tests for tool system
+   - Added test dependencies to project setup
+
+4. Improved Setup Process:
+   - Updated pyproject.toml with test dependencies
+   - Enhanced setup.sh for complete environment setup
+   - Added test verification during setup
+   - Improved configuration templates
+
+### Current Status
+- ✅ Tool system core implementation
+- ✅ Ollama server implementation
+- ✅ Test infrastructure
+- ✅ Setup process
+- ❌ Integration with other MCP servers
+- ❌ Complete tool routing system
 
 ### Next Steps
-1. Fix Node.js dependency issues (npx not found)
-2. Test and verify server connections
-3. Add comprehensive error handling for stream operations
-4. Add logging for better debugging
-5. Create example configuration templates
+1. Test Ollama server with real requests
+2. Implement remaining MCP servers:
+   - Filesystem server
+   - GitHub server
+   - SQLite server
+3. Complete tool routing system
+4. Add comprehensive error handling
+5. Implement parallel tool execution

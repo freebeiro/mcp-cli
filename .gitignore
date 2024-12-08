@@ -4,3 +4,7 @@ __pycache__
 # Backup files
 *.backup
 *~
+
+# Configuration files with sensitive data
+server_config.json
+*.db

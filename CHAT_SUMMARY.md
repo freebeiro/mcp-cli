@@ -101,36 +101,49 @@ This is a multi-server command-line interface (MCP-CLI) that dynamically routes 
 # MCP-CLI Development Chat Summary
 
 ## Project Context
-- **Project**: Model Context Provider CLI (MCP-CLI)
+- **Project**: Model Context Protocol CLI (MCP-CLI)
 - **Repository Location**: /Users/freebeiro/Documents/fcr/claudefiles/mcp-cli
 - **Current Branch**: feature/multi-server-support
 
 ## Main Objective
-Enable the MCP-CLI to work with multiple servers simultaneously, as currently it only supports connecting to one server at a time.
+Build a Model Context Protocol (MCP) compatible CLI that enables:
+1. Connection to multiple MCP servers simultaneously
+2. Local LLM integration (primarily Ollama)
+3. Dynamic tool discovery and routing
+4. Flexible server context switching
 
 ## Current State
-- Single server connection support only
+- Basic MCP server connection support
 - Server configuration in `server_config.json`
-- Command routing to single server
-- Basic CLI interface for server interaction
+- Initial tool schema implementation
+- Basic CLI interface
 
-## Planned Changes
-We're implementing multi-server support in three phases:
+## Implementation Plan
 
-### Phase 1: Configuration & Basic Structure
-- [ ] Update configuration structure
-- [ ] Create ServerManager class
-- [ ] Basic multi-server connection handling
+### Phase 1: MCP Core Infrastructure 
+- [x] Update configuration structure
+- [x] Create ServerManager class
+- [x] Basic multi-server connection handling
+- [x] Tool schema definition
 
-### Phase 2: Command Interface
-- [ ] Add server context switching
-- [ ] Implement new multi-server commands
-- [ ] Update command routing
+### Phase 2: Tool System Implementation 
+- [x] Define tool schema structure
+- [x] Implement tool discovery
+- [x] Create tool router
+- [ ] Add parameter validation
+- [ ] Implement tool execution
 
-### Phase 3: Advanced Features
+### Phase 3: Server Integration 
+- [ ] Filesystem server connection
+- [ ] GitHub server connection
+- [ ] SQLite server connection
+- [ ] Ollama LLM integration
+
+### Phase 4: Advanced Features 
 - [ ] Parallel command execution
 - [ ] Server group operations
 - [ ] Enhanced status reporting
+- [ ] Comprehensive error handling
 
 ## Progress Log
 
@@ -517,6 +530,45 @@ npm install
 cp server_config.json.example server_config.json
 ```
 
+### System Requirements
+1. **Python Environment**:
+   - Python 3.12.3
+   - Virtual environment (venv)
+
+2. **Node.js Environment**:
+   - Node.js 20.10.0
+   - npm
+
+3. **Ollama**:
+   - Ollama installed and running
+   - llama3.2 model pulled (`ollama pull llama3.2`)
+
+### Python Dependencies
+```
+pytest
+pytest-asyncio
+pydantic
+anyio
+openai
+python-dotenv
+rich
+ollama
+```
+
+### Configuration Files
+1. `server_config.json` - Server configurations
+2. `.env` - Environment variables:
+   ```
+   # OpenAI API Key (if using OpenAI)
+   # OPENAI_API_KEY=your-key-here
+
+   # Default LLM Provider (ollama or openai)
+   LLM_PROVIDER=ollama
+
+   # Default Model
+   LLM_MODEL=llama3.2
+   ```
+
 ### Common Issues and Fixes
 1. **Missing get_default_environment Function**
    - If tests fail with `ImportError: cannot import name 'get_default_environment'`
@@ -538,3 +590,29 @@ cp server_config.json.example server_config.json
 ```bash
 python -m pytest test_server_manager.py -v
 ```
+
+## Latest Changes (2024-12-08)
+
+### Async Generator Implementation
+1. Updated `stdio_client.py` to use async generators for better stream handling:
+   - Replaced stream readers/writers with async generators
+   - Added proper initialization and cleanup
+   - Improved error handling for stream operations
+
+2. Updated `server_manager.py` to handle async generators:
+   - Modified ServerConnection class to use async generators
+   - Added proper stream cleanup in disconnect methods
+   - Updated connection handling for better reliability
+
+3. Updated test suite:
+   - Created MockAsyncGenerator for testing
+   - Updated test cases to handle async generators
+   - Added proper stream cleanup verification
+   - Fixed MCPConfig initialization in tests
+
+### Next Steps
+1. Fix Node.js dependency issues (npx not found)
+2. Test and verify server connections
+3. Add comprehensive error handling for stream operations
+4. Add logging for better debugging
+5. Create example configuration templates

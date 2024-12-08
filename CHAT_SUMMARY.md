@@ -6,6 +6,32 @@ Your primary task is to continue the development of the multi-server support fea
 
 The project uses Python 3.12.3 and Node.js 20.10.0, with a mix of Python packages and Node.js tools. Your immediate focus should be on debugging server initialization timeouts and resolving package dependency issues that are currently blocking progress.
 
+## 📋 Critical Development Guidelines
+1. Documentation & Updates
+   - **REQUIRED**: All new meaningful changes MUST be documented in this summary
+   - Keep the summary organized and up-to-date
+   - Document both technical changes and process improvements
+   - Update summary before closing any development session
+
+2. Testing Requirements
+   - **MANDATORY**: Every new implementation MUST have corresponding tests
+   - Tests should cover both success and error cases
+   - Integration tests required for multi-component features
+   - No code merges without passing tests
+
+3. Git Workflow
+   - **REQUIRED**: Each new implementation MUST be in its own feature branch
+   - No direct commits to main branch
+   - Push only after ALL tests pass successfully
+   - Use meaningful commit messages following conventional commits
+   - Create PR for review before merging
+
+4. Configuration Management
+   - **CRITICAL**: `server_config.json` is for external tools - DO NOT MODIFY
+   - Use `server_config.json.example` for template
+   - All sensitive data MUST be in environment variables
+   - Keep external tool configurations separate from application code
+
 Below you will find all the necessary details about the project structure, current status, and specific tasks that need attention. Use this information to understand the context and continue development effectively.
 
 ---
@@ -390,28 +416,74 @@ Ready to begin Phase 1 implementation, starting with configuration structure upd
 
 ## Latest Progress (2024-12-08)
 
-### Test Infrastructure Improvements
-- [x] Fixed async context manager in mock stdio client
-- [x] Added proper send/receive methods for JSONRPCMessage handling
-- [x] Fixed CommandTarget enum usage (SINGLE instead of SERVER)
-- [x] Updated error message assertions in tests
-- [x] All unit tests passing with only non-critical warnings
+### MCP-CLI Project Development Summary
 
-### Command Routing Status
-- [x] Commands can be routed to specific servers
-- [x] Broadcast commands work across all servers
-- [x] Group commands target correct servers
-- [x] Responses are properly aggregated
-- [x] Errors are handled gracefully
+## 🎯 Project Overview
+- Project Name: Model Context Provider CLI (MCP-CLI)
+- Primary Goal: Develop a flexible, multi-server CLI with conversational AI capabilities and dynamic tool integration
 
-### Next Steps
-1. Address remaining warnings:
-   - Pydantic deprecation warning about class-based config
-   - Skipped integration tests that need async support
-   - Runtime warnings about coroutines in integration tests
+## 🔧 Recent Technical Achievements
+1. Server Integration
+   - Successfully integrated Ollama server with llama3.2 model
+   - Implemented proper error handling and logging
+   - Added support for async communication
 
-2. Potential Improvements:
-   - Enhance mock capabilities for more complex scenarios
-   - Add more comprehensive integration tests
-   - Implement more sophisticated error simulation
-   - Consider performance optimization of async communication
+2. Tool Router Development
+   - Created `tool_router.py` for dynamic tool execution
+   - Added support for web scraping and database operations
+   - Implemented multi-step tool workflows
+
+3. Command Router Enhancement
+   - Updated `command_router.py` with proper server handling
+   - Added support for different server types
+   - Improved error handling and response processing
+
+## 🌟 Current System Capabilities
+- Multi-server connection management
+- Ollama integration with llama3.2
+- Dynamic command routing
+- Web scraping integration (planned)
+- Database interaction (planned)
+
+## 🔄 Current Tasks
+1. Creating a Modern Web Interface
+   - Planning to implement a browser-based UI similar to Claude/ChatGPT
+   - Will use FastAPI for backend
+   - Need to design and implement frontend components
+
+2. Tool Integration
+   - Need to complete web scraping implementation
+   - Need to implement database operations
+   - Need to test multi-tool workflows
+
+## 🛠 Technical Components
+- Languages: Python 3.12.7
+- Key Dependencies:
+  - FastAPI
+  - uvicorn
+  - httpx
+  - ollama
+  - rich
+  - jinja2
+
+## 🔒 Security Considerations
+- Removed hardcoded GitHub token
+- Using environment variables for sensitive data
+- Added config file template
+
+## 🚧 Next Steps
+1. Create web interface with FastAPI
+2. Design modern, responsive frontend
+3. Complete tool integrations
+4. Add comprehensive testing
+5. Improve documentation
+
+## ⚠️ Known Issues
+- Need to implement proper tool execution
+- Frontend development not started
+- Documentation needs improvement
+
+## 📦 Configuration
+- Using `server_config.json` for server settings
+- Environment-based configuration for sensitive data
+- Added example configuration template
